@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+
 import Ducks from "./Ducks";
 import Login from "./Login";
 import MyProfile from "./MyProfile";
 import Register from "./Register";
 import ProtectedRoute from "./ProtectedRoute";
-
-import { getToken, setToken } from "../utils/token";
-import * as api from "../utils/api";
 import * as auth from "../utils/auth";
+import * as api from "../utils/api";
+import { setToken, getToken } from "../utils/token";
 import "./styles/App.css";
 
 function App() {
@@ -16,6 +22,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleRegistration = ({
     username,
@@ -25,13 +32,11 @@ function App() {
   }) => {
     if (password === confirmPassword) {
       auth
-        .register(username, email, password)
+        .register(username, password, email)
         .then(() => {
           navigate("/login");
         })
-        .catch((error) => {
-          console.error("Registration failed:", error);
-        });
+        .catch(console.error);
     }
   };
 
@@ -45,9 +50,10 @@ function App() {
       .then((data) => {
         if (data.jwt) {
           setToken(data.jwt);
+          setUserData(data.user);
           setIsLoggedIn(true);
-          setUserData({ username: data.user.username, email: data.user.email });
-          navigate("/ducks", { replace: true });
+          const redirectPath = location.state?.from?.pathname || "/ducks";
+          navigate(redirectPath);
         }
       })
       .catch(console.error);
@@ -55,15 +61,16 @@ function App() {
 
   useEffect(() => {
     const jwt = getToken();
+
     if (!jwt) {
       return;
     }
+
     api
       .getUserInfo(jwt)
       .then(({ username, email }) => {
         setIsLoggedIn(true);
         setUserData({ username, email });
-        navigate("/ducks");
       })
       .catch(console.error);
   }, []);
@@ -78,6 +85,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/my-profile"
         element={
@@ -89,19 +97,24 @@ function App() {
       <Route
         path="/login"
         element={
-          <div className="loginContainer">
-            <Login handleLogin={handleLogin} />
-          </div>
+          <ProtectedRoute isLoggedIn={isLoggedIn} anonymous>
+            <div className="loginContainer">
+              <Login handleLogin={handleLogin} />
+            </div>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/register"
         element={
-          <div className="registerContainer">
-            <Register handleRegistration={handleRegistration} />
-          </div>
+          <ProtectedRoute isLoggedIn={isLoggedIn} anonymous>
+            <div className="registerContainer">
+              <Register handleRegistration={handleRegistration} />
+            </div>
+          </ProtectedRoute>
         }
       />
+
       <Route
         path="*"
         element={
